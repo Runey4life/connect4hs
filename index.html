@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Connect Four</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #0a0a0f;
+    --panel:     #12121a;
+    --border:    #2a2a3d;
+    --accent:    #00f5d4;
+    --red:       #ff3860;
+    --yellow:    #ffd000;
+    --empty:     #1e1e2e;
+    --empty-rim: #2a2a40;
+    --text:      #c8c8e8;
+    --glow-r:    rgba(255,56,96,0.6);
+    --glow-y:    rgba(255,208,0,0.6);
+    --glow-a:    rgba(0,245,212,0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,245,212,0.07) 0%, transparent 70%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.02) 39px, rgba(255,255,255,0.02) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.02) 39px, rgba(255,255,255,0.02) 40px);
+  }
+
+  h1 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(14px, 3vw, 22px);
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    text-shadow: 0 0 20px var(--glow-a), 0 0 40px var(--glow-a);
+    margin-bottom: 6px;
+    text-align: center;
+  }
+
+  .tagline {
+    font-size: 11px;
+    color: #555577;
+    margin-bottom: 28px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  /* ── Status bar ── */
+  #status-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 20px;
+    margin-bottom: 22px;
+    min-width: 320px;
+    justify-content: center;
+    transition: border-color 0.3s;
+  }
+
+  .disc-indicator {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    transition: all 0.3s;
+    flex-shrink: 0;
+  }
+  .disc-indicator.red    { background: var(--red);    box-shadow: 0 0 10px var(--glow-r); border-color: var(--red); }
+  .disc-indicator.yellow { background: var(--yellow); box-shadow: 0 0 10px var(--glow-y); border-color: var(--yellow); }
+
+  #status-text {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    color: var(--text);
+    line-height: 1.6;
+    text-align: center;
+  }
+
+  /* ── Board wrapper ── */
+  #board-wrap {
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    box-shadow:
+      0 0 0 1px rgba(0,245,212,0.05),
+      0 20px 60px rgba(0,0,0,0.6),
+      inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+
+  /* ── Column buttons ── */
+  #col-buttons {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .col-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: #444466;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    padding: 5px 0;
+    cursor: pointer;
+    transition: all 0.15s;
+    width: 100%;
+  }
+  .col-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,245,212,0.06);
+    box-shadow: 0 0 8px var(--glow-a);
+    transform: translateY(-2px);
+  }
+  .col-btn:active:not(:disabled) { transform: translateY(0); }
+  .col-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+
+  /* ── Grid ── */
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    gap: 6px;
+  }
+
+  .cell {
+    width: clamp(38px, 8vw, 58px);
+    height: clamp(38px, 8vw, 58px);
+    border-radius: 50%;
+    background: var(--empty);
+    border: 2px solid var(--empty-rim);
+    transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+  .cell::after {
+    content: '';
+    position: absolute;
+    top: 10%; left: 15%;
+    width: 30%; height: 25%;
+    background: rgba(255,255,255,0.08);
+    border-radius: 50%;
+    transform: rotate(-30deg);
+  }
+  .cell.red {
+    background: var(--red);
+    border-color: #ff6080;
+    box-shadow: 0 0 14px var(--glow-r), inset 0 -3px 6px rgba(0,0,0,0.3);
+    animation: dropIn 0.25s cubic-bezier(0.22,1,0.36,1);
+  }
+  .cell.yellow {
+    background: var(--yellow);
+    border-color: #ffe040;
+    box-shadow: 0 0 14px var(--glow-y), inset 0 -3px 6px rgba(0,0,0,0.3);
+    animation: dropIn 0.25s cubic-bezier(0.22,1,0.36,1);
+  }
+  .cell.win-flash {
+    animation: winPulse 0.5s ease-in-out infinite alternate;
+  }
+
+  @keyframes dropIn {
+    from { transform: scale(0.4) translateY(-20px); opacity: 0.3; }
+    to   { transform: scale(1)   translateY(0);     opacity: 1; }
+  }
+  @keyframes winPulse {
+    from { transform: scale(0.95); filter: brightness(1); }
+    to   { transform: scale(1.08); filter: brightness(1.4); }
+  }
+
+  /* ── Reset button ── */
+  #reset-btn {
+    display: block;
+    margin: 20px auto 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: #555577;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    padding: 10px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 0.12em;
+    transition: all 0.2s;
+  }
+  #reset-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 12px var(--glow-a);
+  }
+
+  /* ── Score ── */
+  #scores {
+    display: flex;
+    gap: 32px;
+    margin-top: 20px;
+    justify-content: center;
+  }
+  .score-block { text-align: center; }
+  .score-label { font-size: 8px; color: #444466; letter-spacing: 0.15em; }
+  .score-val   { font-family: 'Press Start 2P', monospace; font-size: 18px; margin-top: 4px; }
+  .score-val.red    { color: var(--red);    text-shadow: 0 0 10px var(--glow-r); }
+  .score-val.yellow { color: var(--yellow); text-shadow: 0 0 10px var(--glow-y); }
+  .score-divider { color: #333355; font-size: 24px; align-self: center; }
+
+  /* ── Connection badge ── */
+  #conn-badge {
+    position: fixed; top: 14px; right: 18px;
+    font-size: 9px; letter-spacing: 0.1em;
+    padding: 4px 10px; border-radius: 20px;
+    border: 1px solid;
+    transition: all 0.4s;
+  }
+  #conn-badge.ok  { color: var(--accent); border-color: var(--accent); background: rgba(0,245,212,0.07); }
+  #conn-badge.err { color: var(--red);    border-color: var(--red);    background: rgba(255,56,96,0.07);  }
+</style>
+</head>
+<body>
+
+<div id="conn-badge" class="err">● CONNECTING</div>
+
+<h1>CONNECT FOUR</h1>
+<p class="tagline">Two player · Drop to win</p>
+
+<div id="status-bar">
+  <div class="disc-indicator red" id="disc-ind"></div>
+  <div id="status-text">CONNECTING…</div>
+</div>
+
+<div id="board-wrap">
+  <div id="col-buttons">
+    <!-- filled by JS -->
+  </div>
+  <div id="grid">
+    <!-- filled by JS -->
+  </div>
+</div>
+
+<div id="scores">
+  <div class="score-block">
+    <div class="score-label">RED WINS</div>
+    <div class="score-val red" id="score-red">0</div>
+  </div>
+  <div class="score-divider">·</div>
+  <div class="score-block">
+    <div class="score-label">YELLOW WINS</div>
+    <div class="score-val yellow" id="score-yellow">0</div>
+  </div>
+</div>
+
+<button id="reset-btn">⟳ NEW GAME</button>
+
+<script>
+const ROWS = 6, COLS = 7;
+let ws, scores = {red: 0, yellow: 0};
+let lastBoard = null;
+
+// ── Build DOM grid ──────────────────────────────────────────────────────────
+const grid    = document.getElementById('grid');
+const colBtns = document.getElementById('col-buttons');
+
+for (let c = 0; c < COLS; c++) {
+  const btn = document.createElement('button');
+  btn.className = 'col-btn';
+  btn.textContent = (c + 1);
+  btn.dataset.col = c;
+  btn.addEventListener('click', () => sendMove(c));
+  colBtns.appendChild(btn);
+}
+
+// rows top→bottom
+for (let r = ROWS - 1; r >= 0; r--) {
+  for (let c = 0; c < COLS; c++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.id = `cell-${r}-${c}`;
+    grid.appendChild(cell);
+  }
+}
+
+// ── WebSocket ───────────────────────────────────────────────────────────────
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}`);
+
+  ws.onopen = () => {
+    document.getElementById('conn-badge').className = 'ok';
+    document.getElementById('conn-badge').textContent = '● LIVE';
+  };
+  ws.onclose = () => {
+    document.getElementById('conn-badge').className = 'err';
+    document.getElementById('conn-badge').textContent = '● OFFLINE';
+    setTimeout(connect, 2000);
+  };
+  ws.onmessage = (e) => {
+    const state = JSON.parse(e.data);
+    renderState(state);
+  };
+}
+
+function sendMove(col) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({col}));
+  }
+}
+
+// ── Render ──────────────────────────────────────────────────────────────────
+function renderState(state) {
+  const {board, current, winner, draw} = state;
+
+  // Update cells
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.getElementById(`cell-${r}-${c}`);
+      const val  = board[r][c];
+      const prev = lastBoard ? lastBoard[r][c] : 'empty';
+      cell.className = 'cell ' + (val === 'empty' ? '' : val);
+    }
+  }
+  lastBoard = board.map(row => [...row]);
+
+  // Status + indicator
+  const ind  = document.getElementById('disc-ind');
+  const txt  = document.getElementById('status-text');
+  const btns = document.querySelectorAll('.col-btn');
+
+  if (winner) {
+    scores[winner]++;
+    document.getElementById(`score-${winner}`).textContent = scores[winner];
+    txt.textContent = winner.toUpperCase() + ' WINS!';
+    ind.className = 'disc-indicator ' + winner;
+    btns.forEach(b => b.disabled = true);
+    // flash winning pieces — find them
+    highlightWinner(board, winner);
+  } else if (draw) {
+    txt.textContent = 'IT\'S A DRAW!';
+    ind.className = 'disc-indicator';
+    ind.style.background = '#555577';
+    btns.forEach(b => b.disabled = true);
+  } else {
+    txt.textContent = current.toUpperCase() + '\'S TURN';
+    ind.className = 'disc-indicator ' + current;
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+function highlightWinner(board, winner) {
+  const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c] !== winner) continue;
+      for (const [dr, dc] of dirs) {
+        const line = [[r,c]];
+        for (let i = 1; i < 4; i++) {
+          const nr = r + dr*i, nc = c + dc*i;
+          if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) break;
+          if (board[nr][nc] === winner) line.push([nr, nc]);
+          else break;
+        }
+        if (line.length === 4) {
+          line.forEach(([lr, lc]) => {
+            document.getElementById(`cell-${lr}-${lc}`).classList.add('win-flash');
+          });
+        }
+      }
+    }
+  }
+}
+
+// ── Reset ────────────────────────────────────────────────────────────────────
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({reset: true}));
+  }
+});
+
+connect();
+</script>
+</body>
+</html>
